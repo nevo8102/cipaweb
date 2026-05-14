@@ -81,7 +81,8 @@ const server = http.createServer((req, res) => {
         }
     } else {
         // Serve static files
-        let urlPath = req.url === '/' ? '/editor.html' : req.url;
+        let parsedUrl = req.url.split('?')[0];
+        let urlPath = parsedUrl === '/' ? '/editor.html' : parsedUrl;
         let filePath = path.join(__dirname, urlPath);
         
         if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
