@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ניהול כיפות - Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 p-4 font-sans h-screen overflow-hidden">
+    
+    <!-- Login Overlay -->
+    <div id="login-overlay" class="fixed inset-0 z-[100] bg-slate-900 flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center">
+            <h2 class="text-2xl font-bold mb-2">כניסת מנהל</h2>
+            <p class="text-sm text-slate-500 mb-6">נא להזין סיסמה כדי לגשת ללוח הבקרה</p>
+            <form id="login-form" class="space-y-4">
+                <input type="password" id="admin-password" placeholder="סיסמה..." required class="w-full border rounded-lg px-4 py-3 text-center text-lg tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition">כניסה</button>
+                <p id="login-error" class="text-red-500 text-sm hidden font-semibold">סיסמה שגויה, נסה שוב.</p>
+            </form>
+        </div>
+    </div>
+
+    <div id="admin-content" class="max-w-6xl mx-auto space-y-6 opacity-0 transition-opacity duration-500 pointer-events-none">
+        
+        <header class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-900">לוח בקרה - ניהול חנות כיפות</h1>
+                <p class="text-slate-500 mt-1">סטטיסטיקות, הוספה ומחיקה של מוצרים</p>
+            </div>
+            <a href="index.html" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 font-bold">חזרה לחנות</a>
+        </header>
+
+        <!-- Stats Section -->
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-semibold text-slate-600">כניסות לאתר</h3>
+                <p id="stat-visits" class="text-4xl font-bold text-blue-600 mt-2">0</p>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-semibold text-slate-600">סה"כ הקלקות על כיפות</h3>
+                <p id="stat-clicks" class="text-4xl font-bold text-purple-600 mt-2">0</p>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-semibold text-slate-600">סה"כ הוספות לסל</h3>
+                <p id="stat-adds" class="text-4xl font-bold text-emerald-600 mt-2">0</p>
+            </div>
+        </section>
+
+        <!-- Insights Section -->
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-bold mb-4 text-emerald-700">הכיפות הכי נמכרות (לפי הוספות לסל)</h3>
+                <ul id="top-products" class="space-y-3"></ul>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-bold mb-4 text-purple-700">הכי נצפות (לפי הקלקות לתמונה)</h3>
+                <ul id="top-clicked" class="space-y-3"></ul>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-bold mb-4 text-blue-700">צבעים וסגנונות פופולריים</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <h4 class="font-semibold text-slate-600 border-b pb-1 mb-2">צבעים מבוקשים</h4>
+                        <ul id="top-colors" class="space-y-1 text-sm"></ul>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold text-slate-600 border-b pb-1 mb-2">סגנונות מבוקשים</h4>
+                        <ul id="top-styles" class="space-y-1 text-sm"></ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Add Product -->
+            <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 lg:col-span-1 h-fit">
+                <h3 class="text-xl font-bold mb-4">הוספת כיפה חדשה</h3>
+                <form id="add-form" class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-semibold mb-1">שם הכיפה</label>
+                        <input type="text" id="add-name" required class="w-full border rounded-lg px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-1">שם התמונה (למשל: 60.png)</label>
+                        <input type="text" id="add-image" required class="w-full border rounded-lg px-3 py-2 text-left" dir="ltr" placeholder="new.png">
+                        <p class="text-xs text-slate-500 mt-1">* יש להקפיד לשים את קובץ התמונה בתיקייה של האתר.</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-sm font-semibold mb-1">צבע</label>
+                            <input type="text" id="add-color" required class="w-full border rounded-lg px-3 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold mb-1">סגנון</label>
+                            <input type="text" id="add-style" required class="w-full border rounded-lg px-3 py-2">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-sm font-semibold mb-1">קוטר (ס"מ)</label>
+                            <input type="number" step="0.1" id="add-diameter" class="w-full border rounded-lg px-3 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold mb-1">מלאי קיים</label>
+                            <input type="number" id="add-stock" value="1" required class="w-full border rounded-lg px-3 py-2">
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-emerald-500 text-white font-bold py-2 rounded-lg hover:bg-emerald-600 mt-4">הוסף כיפה</button>
+                </form>
+            </section>
+
+            <!-- Manage Products -->
+            <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 lg:col-span-2">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold">ניהול מלאי (מחיקה / עריכה)</h3>
+                    <input type="text" id="search-inventory" placeholder="חיפוש לפי שם..." class="border rounded-lg px-3 py-1 text-sm">
+                </div>
+                <div class="overflow-y-auto max-h-[600px] border rounded-lg">
+                    <table class="w-full text-right text-sm">
+                        <thead class="bg-slate-100 sticky top-0">
+                            <tr>
+                                <th class="p-2">תמונה</th>
+                                <th class="p-2">מזהה (דגם)</th>
+                                <th class="p-2">שם / תיאור</th>
+                                <th class="p-2 text-center">מלאי</th>
+                                <th class="p-2 text-center">פעולות</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventory-list" class="divide-y"></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- We load products from data.js -->
+    <script src="data.js"></script>
+    <script>
+        // Authentication logic
+        const TARGET_HASH = '8677d830dccd8fa270fdec4e1e2663469d38beb3c8afccb47ef96509bb783bea';
+
+        async function hashPassword(password) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(password);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const pwd = document.getElementById('admin-password').value;
+            const hash = await hashPassword(pwd);
+            
+            if (hash === TARGET_HASH) {
+                // Success
+                document.getElementById('login-overlay').classList.add('hidden');
+                document.body.classList.remove('overflow-hidden');
+                const content = document.getElementById('admin-content');
+                content.classList.remove('opacity-0', 'pointer-events-none');
+                
+                // Only load data after login
+                init();
+            } else {
+                // Fail
+                document.getElementById('login-error').classList.remove('hidden');
+                document.getElementById('admin-password').value = '';
+            }
+        });
+
+        let localProducts = [...products];
+        let statsData = { visits: 0, clicks: {}, adds: {} };
+
+        // Save changes to data.js via server
+        async function saveToServer() {
+            try {
+                const res = await fetch('http://localhost:3001/api/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(localProducts)
+                });
+                if(!res.ok) alert('שגיאה בשמירת הנתונים!');
+            } catch(e) {
+                alert('שגיאה בחיבור לשרת (וודא ש- node server.js פועל)');
+            }
+        }
+
+        async function init() {
+            try {
+                const res = await fetch('http://localhost:3001/api/stats');
+                statsData = await res.json();
+            } catch(e) {
+                console.error("Could not load stats");
+            }
+
+            renderDashboard();
+            renderInventory();
+        }
+
+        function renderDashboard() {
+            document.getElementById('stat-visits').textContent = statsData.visits || 0;
+            
+            const totalClicks = Object.values(statsData.clicks || {}).reduce((a,b)=>a+b, 0);
+            document.getElementById('stat-clicks').textContent = totalClicks;
+            
+            const totalAdds = Object.values(statsData.adds || {}).reduce((a,b)=>a+b, 0);
+            document.getElementById('stat-adds').textContent = totalAdds;
+
+            // Compute top products by adds
+            const addsArray = Object.entries(statsData.adds || {}).map(([id, count]) => ({id, count})).sort((a,b) => b.count - a.count);
+            
+            const topProductsHtml = addsArray.slice(0, 5).map(item => {
+                const p = localProducts.find(x => x.id === item.id);
+                if(!p) return '';
+                return `
+                    <li class="flex items-center justify-between border-b pb-2 last:border-0">
+                        <div class="flex items-center gap-3">
+                            <img src="${p.image}" class="w-10 h-10 object-cover rounded bg-slate-100">
+                            <span class="font-semibold text-sm truncate w-24">${p.name}</span>
+                        </div>
+                        <span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-1 rounded-full">${item.count} בסל</span>
+                    </li>
+                `;
+            }).join('');
+            document.getElementById('top-products').innerHTML = topProductsHtml || '<li class="text-slate-500">אין נתונים עדיין</li>';
+
+            // Compute top clicked products
+            const clicksArray = Object.entries(statsData.clicks || {}).map(([id, count]) => ({id, count})).sort((a,b) => b.count - a.count);
+            const topClickedHtml = clicksArray.slice(0, 5).map(item => {
+                const p = localProducts.find(x => x.id === item.id);
+                if(!p) return '';
+                return `
+                    <li class="flex items-center justify-between border-b pb-2 last:border-0">
+                        <div class="flex items-center gap-3">
+                            <img src="${p.image}" class="w-10 h-10 object-cover rounded bg-slate-100">
+                            <span class="font-semibold text-sm truncate w-24">${p.name}</span>
+                        </div>
+                        <span class="bg-purple-100 text-purple-800 text-xs font-bold px-2 py-1 rounded-full">${item.count} צפיות</span>
+                    </li>
+                `;
+            }).join('');
+            document.getElementById('top-clicked').innerHTML = topClickedHtml || '<li class="text-slate-500">אין נתונים עדיין</li>';
+
+            // Compute popular colors and styles
+            const colorScores = {};
+            const styleScores = {};
+            
+            addsArray.forEach(item => {
+                const p = localProducts.find(x => x.id === item.id);
+                if(p) {
+                    if(p.color) colorScores[p.color] = (colorScores[p.color] || 0) + item.count;
+                    if(p.style) styleScores[p.style] = (styleScores[p.style] || 0) + item.count;
+                }
+            });
+
+            const topColors = Object.entries(colorScores).sort((a,b)=>b[1]-a[1]).slice(0,5);
+            document.getElementById('top-colors').innerHTML = topColors.map(c => `
+                <li class="flex justify-between"><span>${c[0]}</span> <span class="text-slate-500">${c[1]} הוספות</span></li>
+            `).join('') || '<li class="text-slate-500">אין נתונים</li>';
+
+            const topStyles = Object.entries(styleScores).sort((a,b)=>b[1]-a[1]).slice(0,5);
+            document.getElementById('top-styles').innerHTML = topStyles.map(s => `
+                <li class="flex justify-between"><span>${s[0]}</span> <span class="text-slate-500">${s[1]} הוספות</span></li>
+            `).join('') || '<li class="text-slate-500">אין נתונים</li>';
+        }
+
+        function renderInventory(searchTerm = '') {
+            const list = document.getElementById('inventory-list');
+            const filtered = localProducts.filter(p => p.name.includes(searchTerm) || p.id.includes(searchTerm) || p.color.includes(searchTerm));
+            
+            list.innerHTML = filtered.map(p => `
+                <tr class="hover:bg-slate-50">
+                    <td class="p-2"><img src="${p.image}" class="w-12 h-12 object-contain bg-slate-100 rounded"></td>
+                    <td class="p-2 font-mono text-sm">${p.id}</td>
+                    <td class="p-2 text-sm font-semibold">${p.name} <br><span class="font-normal text-xs text-slate-500">${p.color} | ${p.style} | ${p.diameterCm} ס"מ</span></td>
+                    <td class="p-2 text-center">
+                        <input type="number" min="0" value="${p.stock}" class="w-16 border rounded text-center text-sm px-1 py-1" onchange="updateStock('${p.id}', this.value)">
+                    </td>
+                    <td class="p-2 text-center">
+                        <button onclick="deleteProduct('${p.id}')" class="text-red-500 hover:bg-red-50 px-3 py-1 rounded text-sm font-bold">מחק</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        document.getElementById('search-inventory').addEventListener('input', e => renderInventory(e.target.value));
+
+        window.updateStock = async function(id, newStock) {
+            const p = localProducts.find(x => x.id === id);
+            if(p) {
+                p.stock = parseInt(newStock) || 0;
+                await saveToServer();
+            }
+        };
+
+        window.deleteProduct = async function(id) {
+            if(confirm('האם אתה בטוח שברצונך למחוק את הכיפה הזו?')) {
+                localProducts = localProducts.filter(x => x.id !== id);
+                renderInventory(document.getElementById('search-inventory').value);
+                await saveToServer();
+            }
+        };
+
+        document.getElementById('add-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            // Generate a unique ID (max ID + 1)
+            const maxId = localProducts.reduce((max, p) => Math.max(max, parseInt(p.id) || 0), 0);
+            const newId = String(maxId + 1);
+
+            const newProduct = {
+                id: newId,
+                name: document.getElementById('add-name').value + ` - דגם ${newId}`,
+                image: document.getElementById('add-image').value,
+                color: document.getElementById('add-color').value,
+                style: document.getElementById('add-style').value,
+                diameterCm: document.getElementById('add-diameter').value,
+                stock: parseInt(document.getElementById('add-stock').value) || 1,
+                price: 50,
+                description: ""
+            };
+
+            localProducts.push(newProduct);
+            await saveToServer();
+            
+            alert('הכיפה נוספה בהצלחה!');
+            document.getElementById('add-form').reset();
+            renderInventory(document.getElementById('search-inventory').value);
+        });
+
+        // We do not call init() here anymore, it is called after successful login.
+    </script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>עורך נתוני כיפות</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .cropper-container {
+            position: relative;
+            display: inline-block;
+        }
+        #image-preview {
+            max-width: 100%;
+            max-height: 500px;
+            display: block;
+        }
+        .canvas-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto bg-white p-6 rounded-lg shadow-md">
+        <h1 class="text-2xl font-bold mb-6 text-center">עורך נתוני כיפות</h1>
+        
+        <div class="flex flex-col md:flex-row gap-6">
+            <!-- Left side: Form -->
+            <div class="w-full md:w-1/2 space-y-4">
+                <div class="flex items-center justify-between">
+                    <button id="prev-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400">הקודם</button>
+                    <span id="current-id-display" class="font-bold text-lg">כיפה 1 / 59</span>
+                    <button id="next-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400">הבא</button>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">קוטר (ס"מ)</label>
+                    <input type="number" id="diameter-input" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-blue-500 focus:ring-blue-500" step="0.1">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">צבע</label>
+                    <input type="text" id="color-input" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-blue-500 focus:ring-blue-500">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">סגנון</label>
+                    <input type="text" id="style-input" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-blue-500 focus:ring-blue-500">
+                </div>
+
+                <div class="pt-4 flex gap-2">
+                    <button id="save-btn" class="flex-1 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 font-bold">שמור למערכת</button>
+                </div>
+            </div>
+
+            <!-- Right side: Image Preview & Cropping -->
+            <div class="w-full md:w-1/2 border rounded flex items-center justify-center bg-gray-50 overflow-hidden relative" style="min-height: 400px;">
+                <div class="cropper-container">
+                    <img id="image-preview" src="" alt="תצוגה מקדימה" style="display: none;">
+                    <canvas id="crop-overlay" class="canvas-overlay"></canvas>
+                </div>
+                <div id="no-image-text" class="text-gray-400 text-center">טוען תמונה...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- We need the data.js loaded to get initial data -->
+    <script src="data.js"></script>
+    <script>
+        let currentIdx = 0;
+        let localProducts = [];
+        
+        // Load initial data
+        if (typeof products !== 'undefined') {
+            localProducts = JSON.parse(JSON.stringify(products));
+        }
+
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const idDisplay = document.getElementById('current-id-display');
+        const diameterInput = document.getElementById('diameter-input');
+        const colorInput = document.getElementById('color-input');
+        const styleInput = document.getElementById('style-input');
+        const saveBtn = document.getElementById('save-btn');
+        const exportBtn = document.getElementById('export-btn');
+        
+        const imagePreview = document.getElementById('image-preview');
+        const noImageText = document.getElementById('no-image-text');
+
+        function updateUI() {
+            if (localProducts.length === 0) return;
+            
+            const product = localProducts[currentIdx];
+            idDisplay.textContent = `כיפה ${currentIdx + 1} / ${localProducts.length}`;
+            
+            diameterInput.value = product.diameterCm || '';
+            colorInput.value = product.color || '';
+            styleInput.value = product.style || '';
+
+            // Try to load image
+            imagePreview.src = product.image;
+            imagePreview.style.display = 'block';
+            noImageText.style.display = 'none';
+            
+            imagePreview.onerror = () => {
+                imagePreview.style.display = 'none';
+                noImageText.style.display = 'block';
+                noImageText.textContent = 'תמונה לא נמצאה: ' + product.image;
+            };
+
+            prevBtn.disabled = currentIdx === 0;
+            nextBtn.disabled = currentIdx === localProducts.length - 1;
+        }
+
+        prevBtn.addEventListener('click', () => {
+            if (currentIdx > 0) {
+                currentIdx--;
+                updateUI();
+            }
+        });
+
+        nextBtn.addEventListener('click', () => {
+            if (currentIdx < localProducts.length - 1) {
+                currentIdx++;
+                updateUI();
+            }
+        });
+
+        saveBtn.addEventListener('click', async () => {
+            const product = localProducts[currentIdx];
+            product.diameterCm = diameterInput.value;
+            product.color = colorInput.value;
+            product.style = styleInput.value;
+            
+            try {
+                const res = await fetch('http://localhost:3001/api/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(localProducts)
+                });
+                
+                if (res.ok) {
+                    const originalText = saveBtn.textContent;
+                    saveBtn.textContent = 'נשמר בהצלחה!';
+                    saveBtn.classList.replace('bg-green-500', 'bg-teal-500');
+                    setTimeout(() => {
+                        saveBtn.textContent = originalText;
+                        saveBtn.classList.replace('bg-teal-500', 'bg-green-500');
+                    }, 1500);
+                } else {
+                    alert('שגיאה בשמירה');
+                }
+            } catch (err) {
+                alert('שגיאה בתקשורת עם השרת');
+            }
+        });
+
+
+
+        // Add keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT') return; // Don't trigger if typing in input
+            
+            if (e.key === 'ArrowRight') {
+                prevBtn.click(); // RTL so right is prev
+            } else if (e.key === 'ArrowLeft') {
+                nextBtn.click(); // RTL so left is next
+            }
+        });
+
+        // Initialize
+        updateUI();
+    </script>
+</body>
+</html>
