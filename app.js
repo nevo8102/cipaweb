@@ -1,271 +1,335 @@
-const els = {
-  grid: document.getElementById('products-grid'),
-  emptyState: document.getElementById('empty-state'),
-  resultsInfo: document.getElementById('results-info'),
-  searchInput: document.getElementById('search-input'),
-  colorFilter: document.getElementById('color-filter'),
-  diameterFilter: document.getElementById('diameter-filter'),
-  styleFilter: document.getElementById('style-filter'),
-  sortFilter: document.getElementById('sort-filter'),
-  largeOnly: document.getElementById('large-only'),
-  cartItems: document.getElementById('cart-items'),
-  cartTotal: document.getElementById('cart-total'),
-  cartCount: document.getElementById('cart-count'),
-  orderWhatsapp: document.getElementById('order-whatsapp'),
-  modal: document.getElementById('image-modal'),
-  modalImage: document.getElementById('modal-image'),
-  modalTitle: document.getElementById('modal-title'),
-  modalActions: document.getElementById('modal-actions'),
-  closeModal: document.getElementById('close-modal')
-};
-
-const CART_KEY = 'srugot-cart-v2';
-let cart = JSON.parse(localStorage.getItem(CART_KEY) || '[]');
-
-const formatCurrency = (v) => new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
-const uniqueValues = (items, key) => [...new Set(items.map((item) => item[key]))].sort((a, b) => Number(a) - Number(b));
-const asNum = (p) => Number(p.diameterCm);
-
-function topThirtyThreshold() {
-  const sorted = products.map(asNum).sort((a, b) => b - a);
-  const cutoffIndex = Math.max(0, Math.ceil(sorted.length * 0.3) - 1);
-  return sorted[cutoffIndex] ?? Infinity;
-}
-
-function bundlePrice(totalQty) {
-  if (totalQty <= 0) return 0;
-  if (totalQty === 1) return 50;
-  if (totalQty === 2) return 90;
-  if (totalQty === 3) return 120;
-  return 120 + (totalQty - 3) * 40;
-}
-
-function populateFilters() {
-  [...new Set(products.map((p) => p.color))].sort((a, b) => a.localeCompare(b, 'he')).forEach((color) => {
-    els.colorFilter.insertAdjacentHTML('beforeend', `<option value="${color}">${color}</option>`);
-  });
-
-  uniqueValues(products, 'diameterCm').forEach((d) => {
-    els.diameterFilter.insertAdjacentHTML('beforeend', `<option value="${d}">${d} ס״מ</option>`);
-  });
-
-  [...new Set(products.map((p) => p.style))].sort((a, b) => a.localeCompare(b, 'he')).forEach((style) => {
-    els.styleFilter.insertAdjacentHTML('beforeend', `<option value="${style}">${style}</option>`);
-  });
-}
-
-function filteredProducts() {
-  const color = els.colorFilter.value;
-  const diameter = els.diameterFilter.value;
-  const style = els.styleFilter.value;
-  const largeOnly = els.largeOnly.checked;
-  const threshold = topThirtyThreshold();
-
-  let list = products.filter((p) => {
-    const byColor = !color || p.color.includes(color);
-    const byDiameter = !diameter || p.diameterCm === diameter;
-    const byStyle = !style || p.style === style;
-    const byLarge = !largeOnly || asNum(p) >= threshold;
-    return byColor && byDiameter && byStyle && byLarge;
-  });
-
-  list = list.sort((a, b) => els.sortFilter.value === 'diameter-asc' ? asNum(a) - asNum(b) : asNum(b) - asNum(a));
-  return list;
-}
-
-function renderProducts(list) {
-  els.grid.innerHTML = list.map((p) => {
-    const qty = qtyInCart(p.id);
-    const addButtonDisabled = !canAdd(p.id) ? 'disabled' : '';
-    const addClass = canAdd(p.id) ? 'bg-slate-900 hover:bg-slate-800' : 'bg-slate-400 cursor-not-allowed';
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ניהול כיפות - Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 p-4 font-sans h-screen overflow-hidden">
     
-    let buttonsHtml = '';
-    if (qty > 0) {
-      buttonsHtml = `
-        <div class="mt-2 flex items-center justify-between gap-2">
-          <button data-remove="${p.id}" class="flex-1 rounded-lg bg-red-100 text-red-600 py-2 text-sm font-semibold hover:bg-red-200">הסר</button>
-          <span class="text-sm font-bold text-slate-700 px-1 text-center">${qty} בהזמנה</span>
-          <button data-add="${p.id}" ${addButtonDisabled} class="flex-1 rounded-lg text-white py-2 text-sm font-semibold ${addClass}">הוסף עוד</button>
+    <!-- Login Overlay -->
+    <div id="login-overlay" class="fixed inset-0 z-[100] bg-slate-900 flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center">
+            <h2 class="text-2xl font-bold mb-2">כניסת מנהל</h2>
+            <p class="text-sm text-slate-500 mb-6">נא להזין סיסמה כדי לגשת ללוח הבקרה</p>
+            <form id="login-form" class="space-y-4">
+                <input type="password" id="admin-password" placeholder="סיסמה..." required class="w-full border rounded-lg px-4 py-3 text-center text-lg tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition">כניסה</button>
+                <p id="login-error" class="text-red-500 text-sm hidden font-semibold">סיסמה שגויה, נסה שוב.</p>
+            </form>
         </div>
-      `;
-    } else {
-      buttonsHtml = `<button data-add="${p.id}" ${addButtonDisabled} class="mt-2 w-full rounded-lg text-white text-sm py-2 font-semibold transition-colors ${addClass}">${canAdd(p.id) ? 'הוספה להזמנה' : 'אזל מהמלאי'}</button>`;
-    }
+    </div>
 
-    return `
-    <article class="bg-white rounded-xl shadow-sm overflow-hidden border border-slate-200">
-      <img src="${p.image}" alt="${p.name}" data-img-id="${p.id}" class="h-40 w-full object-contain p-2 bg-slate-50 cursor-pointer hover:scale-105 transition-transform" loading="lazy">
-      <div class="p-3 space-y-1">
-        <h3 class="font-semibold text-sm">${p.name}</h3>
-        <p class="text-xs text-slate-500">צבע: ${p.color} | סגנון: ${p.style}</p>
-        <p class="text-xs text-slate-500">קוטר: ${p.diameterCm} ס״מ</p>
-        <p class="text-xs text-slate-500">נותרו במלאי: ${p.stock}</p>
-        <p class="text-xs text-slate-600">${p.description}</p>
-        ${buttonsHtml}
-      </div>
-    </article>
-    `;
-  }).join('');
+    <div id="admin-content" class="max-w-6xl mx-auto space-y-6 opacity-0 transition-opacity duration-500 pointer-events-none">
+        
+        <header class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-900">לוח בקרה - ניהול חנות כיפות</h1>
+                <p class="text-slate-500 mt-1">סטטיסטיקות, הוספה ומחיקה של מוצרים</p>
+            </div>
+            <a href="index.html" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 font-bold">חזרה לחנות</a>
+        </header>
 
-  els.resultsInfo.textContent = `מציג ${list.length} מתוך ${products.length} כיפות סרוגות`;
-  els.emptyState.classList.toggle('hidden', list.length > 0);
-}
+        <!-- Stats Section -->
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-semibold text-slate-600">כניסות לאתר</h3>
+                <p id="stat-visits" class="text-4xl font-bold text-blue-600 mt-2">0</p>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-semibold text-slate-600">סה"כ הקלקות על כיפות</h3>
+                <p id="stat-clicks" class="text-4xl font-bold text-purple-600 mt-2">0</p>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-semibold text-slate-600">סה"כ הוספות לסל</h3>
+                <p id="stat-adds" class="text-4xl font-bold text-emerald-600 mt-2">0</p>
+            </div>
+        </section>
 
-function saveCart() { localStorage.setItem(CART_KEY, JSON.stringify(cart)); }
+        <!-- Insights Section -->
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-bold mb-4 text-emerald-700">הכיפות הכי נמכרות (לפי הוספות לסל)</h3>
+                <ul id="top-products" class="space-y-3"></ul>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-bold mb-4 text-purple-700">הכי נצפות (לפי הקלקות לתמונה)</h3>
+                <ul id="top-clicked" class="space-y-3"></ul>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-bold mb-4 text-blue-700">צבעים וסגנונות פופולריים</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <h4 class="font-semibold text-slate-600 border-b pb-1 mb-2">צבעים מבוקשים</h4>
+                        <ul id="top-colors" class="space-y-1 text-sm"></ul>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold text-slate-600 border-b pb-1 mb-2">סגנונות מבוקשים</h4>
+                        <ul id="top-styles" class="space-y-1 text-sm"></ul>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-function qtyInCart(productId) {
-  const row = cart.find((i) => i.productId === productId);
-  return row ? row.qty : 0;
-}
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Add Product -->
+            <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 lg:col-span-1 h-fit">
+                <h3 class="text-xl font-bold mb-4">הוספת כיפה חדשה</h3>
+                <form id="add-form" class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-semibold mb-1">שם הכיפה</label>
+                        <input type="text" id="add-name" required class="w-full border rounded-lg px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-1">שם התמונה (למשל: 60.png)</label>
+                        <input type="text" id="add-image" required class="w-full border rounded-lg px-3 py-2 text-left" dir="ltr" placeholder="new.png">
+                        <p class="text-xs text-slate-500 mt-1">* יש להקפיד לשים את קובץ התמונה בתיקייה של האתר.</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-sm font-semibold mb-1">צבע</label>
+                            <input type="text" id="add-color" required class="w-full border rounded-lg px-3 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold mb-1">סגנון</label>
+                            <input type="text" id="add-style" required class="w-full border rounded-lg px-3 py-2">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-sm font-semibold mb-1">קוטר (ס"מ)</label>
+                            <input type="number" step="0.1" id="add-diameter" class="w-full border rounded-lg px-3 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold mb-1">מלאי קיים</label>
+                            <input type="number" id="add-stock" value="1" required class="w-full border rounded-lg px-3 py-2">
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-emerald-500 text-white font-bold py-2 rounded-lg hover:bg-emerald-600 mt-4">הוסף כיפה</button>
+                </form>
+            </section>
 
-function canAdd(productId) {
-  const p = products.find((x) => x.id === productId);
-  return p && qtyInCart(productId) < p.stock;
-}
+            <!-- Manage Products -->
+            <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 lg:col-span-2">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold">ניהול מלאי (מחיקה / עריכה)</h3>
+                    <input type="text" id="search-inventory" placeholder="חיפוש לפי שם..." class="border rounded-lg px-3 py-1 text-sm">
+                </div>
+                <div class="overflow-y-auto max-h-[600px] border rounded-lg">
+                    <table class="w-full text-right text-sm">
+                        <thead class="bg-slate-100 sticky top-0">
+                            <tr>
+                                <th class="p-2">תמונה</th>
+                                <th class="p-2">מזהה (דגם)</th>
+                                <th class="p-2">שם / תיאור</th>
+                                <th class="p-2 text-center">מלאי</th>
+                                <th class="p-2 text-center">פעולות</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventory-list" class="divide-y"></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
 
-function addToCart(productId) {
-  const p = products.find((x) => x.id === productId);
-  if (!p) return;
-  const currentQty = qtyInCart(productId);
-  if (currentQty >= p.stock) return;
+    <!-- We load products from data.js -->
+    <script src="data.js"></script>
+    <script>
+        // Authentication logic
+        const TARGET_HASH = '8677d830dccd8fa270fdec4e1e2663469d38beb3c8afccb47ef96509bb783bea';
 
-  const row = cart.find((i) => i.productId === productId);
-  if (row) row.qty += 1;
-  else cart.push({ productId, qty: 1 });
+        async function hashPassword(password) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(password);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
 
-  saveCart();
-  renderProducts(filteredProducts());
-  renderCart();
-  if (!els.modal.classList.contains('hidden') && els.modalImage.src.includes(productId)) {
-    updateModalButtons(productId);
-  }
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const pwd = document.getElementById('admin-password').value;
+            const hash = await hashPassword(pwd);
+            
+            if (hash === TARGET_HASH) {
+                // Success
+                document.getElementById('login-overlay').classList.add('hidden');
+                document.body.classList.remove('overflow-hidden');
+                const content = document.getElementById('admin-content');
+                content.classList.remove('opacity-0', 'pointer-events-none');
+                
+                // Only load data after login
+                init();
+            } else {
+                // Fail
+                document.getElementById('login-error').classList.remove('hidden');
+                document.getElementById('admin-password').value = '';
+            }
+        });
 
-  // Track add to cart
-  fetch('http://localhost:3001/api/track', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: 'add', id: productId })
-  }).catch(() => {});
-}
-function removeFromCart(productId) {
-  cart = cart.filter((i) => i.productId !== productId);
-  saveCart();
-  renderProducts(filteredProducts());
-  renderCart();
-  if (!els.modal.classList.contains('hidden') && els.modalImage.src.includes(productId)) {
-    updateModalButtons(productId);
-  }
-}
+        let localProducts = [...products];
+        let statsData = { visits: 0, clicks: {}, adds: {} };
 
-function renderCart() {
-  const qty = cart.reduce((sum, i) => sum + i.qty, 0);
-  const total = bundlePrice(qty);
+        // Save changes to data.js via server
+        async function saveToServer() {
+            try {
+                const res = await fetch('/api/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(localProducts)
+                });
+                if(!res.ok) alert('שגיאה בשמירת הנתונים!');
+            } catch(e) {
+                alert('שגיאה בחיבור לשרת (וודא ש- node server.js פועל)');
+            }
+        }
 
-  if (!cart.length) {
-    els.cartItems.innerHTML = '<p class="text-sm text-slate-500">עדיין לא בחרת כיפות.</p>';
-  } else {
-    els.cartItems.innerHTML = cart.map((i) => {
-      const p = products.find((x) => x.id === i.productId);
-      return `<div class="flex items-center justify-between border rounded-lg p-2"><div><p class="text-sm font-medium">${p.name}</p><p class="text-xs text-slate-500">כמות: ${i.qty} מתוך ${p.stock}</p></div><button data-remove="${p.id}" class="text-xs text-red-600">הסר</button></div>`;
-    }).join('');
-  }
+        async function init() {
+            try {
+                const res = await fetch('/api/stats');
+                statsData = await res.json();
+            } catch(e) {
+                console.error("Could not load stats");
+            }
 
-  els.cartCount.textContent = `${qty} פריטים`;
-  els.cartTotal.textContent = formatCurrency(total);
+            renderDashboard();
+            renderInventory();
+        }
 
-  const lines = cart.map((i) => {
-    const p = products.find((x) => x.id === i.productId);
-    return `• ${p.name} - כמות ${i.qty}`;
-  }).join('%0A');
+        function renderDashboard() {
+            document.getElementById('stat-visits').textContent = statsData.visits || 0;
+            
+            const totalClicks = Object.values(statsData.clicks || {}).reduce((a,b)=>a+b, 0);
+            document.getElementById('stat-clicks').textContent = totalClicks;
+            
+            const totalAdds = Object.values(statsData.adds || {}).reduce((a,b)=>a+b, 0);
+            document.getElementById('stat-adds').textContent = totalAdds;
 
-  const msg = `שלום, אשמח להזמין כיפות סרוגות:%0A${lines}%0Aסה"כ פריטים: ${qty}%0Aסה"כ לתשלום: ${total} ש"ח`;
-  els.orderWhatsapp.href = `https://wa.me/972559487356?text=${msg}`;
-}
+            // Compute top products by adds
+            const addsArray = Object.entries(statsData.adds || {}).map(([id, count]) => ({id, count})).sort((a,b) => b.count - a.count);
+            
+            const topProductsHtml = addsArray.slice(0, 5).map(item => {
+                const p = localProducts.find(x => x.id === item.id);
+                if(!p) return '';
+                return `
+                    <li class="flex items-center justify-between border-b pb-2 last:border-0">
+                        <div class="flex items-center gap-3">
+                            <img src="${p.image}" class="w-10 h-10 object-cover rounded bg-slate-100">
+                            <span class="font-semibold text-sm truncate w-24">${p.name}</span>
+                        </div>
+                        <span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-1 rounded-full">${item.count} בסל</span>
+                    </li>
+                `;
+            }).join('');
+            document.getElementById('top-products').innerHTML = topProductsHtml || '<li class="text-slate-500">אין נתונים עדיין</li>';
 
-function init() {
-  populateFilters();
-  renderProducts(filteredProducts());
-  renderCart();
+            // Compute top clicked products
+            const clicksArray = Object.entries(statsData.clicks || {}).map(([id, count]) => ({id, count})).sort((a,b) => b.count - a.count);
+            const topClickedHtml = clicksArray.slice(0, 5).map(item => {
+                const p = localProducts.find(x => x.id === item.id);
+                if(!p) return '';
+                return `
+                    <li class="flex items-center justify-between border-b pb-2 last:border-0">
+                        <div class="flex items-center gap-3">
+                            <img src="${p.image}" class="w-10 h-10 object-cover rounded bg-slate-100">
+                            <span class="font-semibold text-sm truncate w-24">${p.name}</span>
+                        </div>
+                        <span class="bg-purple-100 text-purple-800 text-xs font-bold px-2 py-1 rounded-full">${item.count} צפיות</span>
+                    </li>
+                `;
+            }).join('');
+            document.getElementById('top-clicked').innerHTML = topClickedHtml || '<li class="text-slate-500">אין נתונים עדיין</li>';
 
-  const update = () => renderProducts(filteredProducts());
-  [els.colorFilter, els.diameterFilter, els.styleFilter, els.sortFilter, els.largeOnly].forEach((el) => {
-    el.addEventListener(el.type === 'checkbox' ? 'change' : 'input', update);
-    if (el.tagName === 'SELECT') el.addEventListener('change', update);
-  });
+            // Compute popular colors and styles
+            const colorScores = {};
+            const styleScores = {};
+            
+            addsArray.forEach(item => {
+                const p = localProducts.find(x => x.id === item.id);
+                if(p) {
+                    if(p.color) colorScores[p.color] = (colorScores[p.color] || 0) + item.count;
+                    if(p.style) styleScores[p.style] = (styleScores[p.style] || 0) + item.count;
+                }
+            });
 
-  els.grid.addEventListener('click', (e) => { 
-    const addBtn = e.target.closest('[data-add]'); 
-    if (addBtn) addToCart(addBtn.dataset.add); 
-    const rmBtn = e.target.closest('[data-remove]');
-    if (rmBtn) removeFromCart(rmBtn.dataset.remove);
-    const imgBtn = e.target.closest('[data-img-id]');
-    if (imgBtn) openImageModal(imgBtn.dataset.imgId);
-  });
-  els.cartItems.addEventListener('click', (e) => { const btn = e.target.closest('[data-remove]'); if (btn) removeFromCart(btn.dataset.remove); });
+            const topColors = Object.entries(colorScores).sort((a,b)=>b[1]-a[1]).slice(0,5);
+            document.getElementById('top-colors').innerHTML = topColors.map(c => `
+                <li class="flex justify-between"><span>${c[0]}</span> <span class="text-slate-500">${c[1]} הוספות</span></li>
+            `).join('') || '<li class="text-slate-500">אין נתונים</li>';
 
-  els.modalActions.addEventListener('click', (e) => {
-    const addBtn = e.target.closest('[data-add]');
-    if (addBtn) {
-      e.preventDefault();
-      e.stopPropagation();
-      addToCart(addBtn.dataset.add);
-    }
-    const rmBtn = e.target.closest('[data-remove]');
-    if (rmBtn) {
-      e.preventDefault();
-      e.stopPropagation();
-      removeFromCart(rmBtn.dataset.remove);
-    }
-  });
+            const topStyles = Object.entries(styleScores).sort((a,b)=>b[1]-a[1]).slice(0,5);
+            document.getElementById('top-styles').innerHTML = topStyles.map(s => `
+                <li class="flex justify-between"><span>${s[0]}</span> <span class="text-slate-500">${s[1]} הוספות</span></li>
+            `).join('') || '<li class="text-slate-500">אין נתונים</li>';
+        }
 
-  // Modal close handlers
-  els.closeModal.addEventListener('click', () => els.modal.classList.add('hidden'));
-  els.modal.addEventListener('click', (e) => {
-    if (e.target.id === 'image-modal') els.modal.classList.add('hidden');
-  });
-}
+        function renderInventory(searchTerm = '') {
+            const list = document.getElementById('inventory-list');
+            const filtered = localProducts.filter(p => p.name.includes(searchTerm) || p.id.includes(searchTerm) || p.color.includes(searchTerm));
+            
+            list.innerHTML = filtered.map(p => `
+                <tr class="hover:bg-slate-50">
+                    <td class="p-2"><img src="${p.image}" class="w-12 h-12 object-contain bg-slate-100 rounded"></td>
+                    <td class="p-2 font-mono text-sm">${p.id}</td>
+                    <td class="p-2 text-sm font-semibold">${p.name} <br><span class="font-normal text-xs text-slate-500">${p.color} | ${p.style} | ${p.diameterCm} ס"מ</span></td>
+                    <td class="p-2 text-center">
+                        <input type="number" min="0" value="${p.stock}" class="w-16 border rounded text-center text-sm px-1 py-1" onchange="updateStock('${p.id}', this.value)">
+                    </td>
+                    <td class="p-2 text-center">
+                        <button onclick="deleteProduct('${p.id}')" class="text-red-500 hover:bg-red-50 px-3 py-1 rounded text-sm font-bold">מחק</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
 
-function updateModalButtons(id) {
-  const p = products.find((x) => x.id === id);
-  if (!p) return;
-  const qty = qtyInCart(p.id);
-  const addButtonDisabled = !canAdd(p.id) ? 'disabled' : '';
-  const addClass = canAdd(p.id) ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-slate-500 cursor-not-allowed';
-  
-  if (qty > 0) {
-    els.modalActions.innerHTML = `
-      <div class="flex items-center gap-3 bg-white px-3 py-1 rounded-lg">
-        <button data-remove="${p.id}" class="text-red-500 font-bold px-2 py-1 hover:bg-red-50 rounded">- הסר</button>
-        <span class="font-bold text-slate-800">${qty} בסל</span>
-        <button data-add="${p.id}" ${addButtonDisabled} class="text-emerald-600 font-bold px-2 py-1 hover:bg-emerald-50 rounded">+ הוסף עוד</button>
-      </div>
-    `;
-  } else {
-    els.modalActions.innerHTML = `<button data-add="${p.id}" ${addButtonDisabled} class="px-6 py-2 rounded-lg text-white font-bold transition-colors ${addClass}">${canAdd(p.id) ? 'הוסף לסל עכשיו' : 'אזל מהמלאי'}</button>`;
-  }
-}
+        document.getElementById('search-inventory').addEventListener('input', e => renderInventory(e.target.value));
 
-function openImageModal(id) {
-  const p = products.find((x) => x.id === id);
-  if (!p) return;
-  els.modalImage.src = p.image;
-  els.modalTitle.textContent = p.name;
-  updateModalButtons(id);
-  els.modal.classList.remove('hidden');
+        window.updateStock = async function(id, newStock) {
+            const p = localProducts.find(x => x.id === id);
+            if(p) {
+                p.stock = parseInt(newStock) || 0;
+                await saveToServer();
+            }
+        };
 
-  // Track click in backend (silently catch error if backend is not available e.g. on Github)
-  fetch('http://localhost:3001/api/track', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: 'click', id: p.id })
-  }).catch(() => { /* Silent fail */ });
-}
+        window.deleteProduct = async function(id) {
+            if(confirm('האם אתה בטוח שברצונך למחוק את הכיפה הזו?')) {
+                localProducts = localProducts.filter(x => x.id !== id);
+                renderInventory(document.getElementById('search-inventory').value);
+                await saveToServer();
+            }
+        };
 
-// Track page visit
-fetch('http://localhost:3001/api/track', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ type: 'visit' })
-}).catch(() => {});
+        document.getElementById('add-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            // Generate a unique ID (max ID + 1)
+            const maxId = localProducts.reduce((max, p) => Math.max(max, parseInt(p.id) || 0), 0);
+            const newId = String(maxId + 1);
 
-init();
+            const newProduct = {
+                id: newId,
+                name: document.getElementById('add-name').value + ` - דגם ${newId}`,
+                image: document.getElementById('add-image').value,
+                color: document.getElementById('add-color').value,
+                style: document.getElementById('add-style').value,
+                diameterCm: document.getElementById('add-diameter').value,
+                stock: parseInt(document.getElementById('add-stock').value) || 1,
+                price: 50,
+                description: ""
+            };
+
+            localProducts.push(newProduct);
+            await saveToServer();
+            
+            alert('הכיפה נוספה בהצלחה!');
+            document.getElementById('add-form').reset();
+            renderInventory(document.getElementById('search-inventory').value);
+        });
+
+        // We do not call init() here anymore, it is called after successful login.
+    </script>
+</body>
+</html>
