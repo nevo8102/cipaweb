@@ -136,7 +136,7 @@
     </div>
 
     <!-- We load products from data.js -->
-    <script src="data.js"></script>
+    <script src="data.js?v=2"></script>
     <script>
         // Authentication logic
         const TARGET_HASH = '8677d830dccd8fa270fdec4e1e2663469d38beb3c8afccb47ef96509bb783bea';
@@ -176,7 +176,7 @@
         // Save changes to data.js via server
         async function saveToServer() {
             try {
-                const res = await fetch('http://localhost:3001/api/save', {
+                const res = await fetch('/api/save', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(localProducts)
@@ -189,7 +189,7 @@
 
         async function init() {
             try {
-                const res = await fetch('http://localhost:3001/api/stats');
+                const res = await fetch('/api/stats');
                 statsData = await res.json();
             } catch(e) {
                 console.error("Could not load stats");
