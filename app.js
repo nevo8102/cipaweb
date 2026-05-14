@@ -4,90 +4,66 @@ const els = {
   resultsInfo: document.getElementById('results-info'),
   searchInput: document.getElementById('search-input'),
   colorFilter: document.getElementById('color-filter'),
-  sizeFilter: document.getElementById('size-filter'),
-  cartToggle: document.getElementById('cart-toggle'),
-  cartClose: document.getElementById('cart-close'),
-  cartDrawer: document.getElementById('cart-drawer'),
-  overlay: document.getElementById('overlay'),
+  diameterFilter: document.getElementById('diameter-filter'),
   cartItems: document.getElementById('cart-items'),
   cartTotal: document.getElementById('cart-total'),
-  cartCount: document.getElementById('cart-count')
+  cartCount: document.getElementById('cart-count'),
+  orderWhatsapp: document.getElementById('order-whatsapp')
 };
 
-const CART_KEY = 'kipa-shop-cart-v1';
-let cart = loadCart();
+const CART_KEY = 'srugot-cart-v2';
+let cart = JSON.parse(localStorage.getItem(CART_KEY) || '[]');
 
-function formatCurrency(value) {
-  return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(value);
-}
+const formatCurrency = (v) => new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
 
-function uniqueValues(items, key) {
-  return [...new Set(items.map((item) => item[key]))].sort((a, b) => a.localeCompare(b, 'he'));
+const uniqueValues = (items, key) => [...new Set(items.map((item) => item[key]))].sort((a, b) => Number(a) - Number(b));
+
+function bundlePrice(totalQty) {
+  if (totalQty <= 0) return 0;
+  if (totalQty === 1) return 50;
+  if (totalQty === 2) return 90;
+  if (totalQty === 3) return 120;
+  return 120 + (totalQty - 3) * 40;
 }
 
 function populateFilters() {
-  uniqueValues(products, 'color').forEach((color) => {
-    const option = document.createElement('option');
-    option.value = color;
-    option.textContent = color;
-    els.colorFilter.appendChild(option);
+  [...new Set(products.map((p) => p.color))].sort((a, b) => a.localeCompare(b, 'he')).forEach((color) => {
+    els.colorFilter.insertAdjacentHTML('beforeend', `<option value="${color}">${color}</option>`);
   });
 
-  uniqueValues(products, 'size').forEach((size) => {
-    const option = document.createElement('option');
-    option.value = size;
-    option.textContent = size;
-    els.sizeFilter.appendChild(option);
+  uniqueValues(products, 'diameterCm').forEach((d) => {
+    els.diameterFilter.insertAdjacentHTML('beforeend', `<option value="${d}">${d} ס״מ</option>`);
   });
 }
 
-function getFilteredProducts() {
-  const text = els.searchInput.value.trim().toLowerCase();
+function filteredProducts() {
+  const term = els.searchInput.value.trim().toLowerCase();
   const color = els.colorFilter.value;
-  const size = els.sizeFilter.value;
+  const diameter = els.diameterFilter.value;
 
-  return products.filter((product) => {
-    const matchesText = !text || product.name.toLowerCase().includes(text);
-    const matchesColor = !color || product.color === color;
-    const matchesSize = !size || product.size === size;
-    return matchesText && matchesColor && matchesSize;
+  return products.filter((p) => {
+    const byName = !term || p.name.toLowerCase().includes(term);
+    const byColor = !color || p.color === color;
+    const byDiameter = !diameter || p.diameterCm === diameter;
+    return byName && byColor && byDiameter;
   });
 }
 
-function productCard(product) {
-  return `
-    <article class="bg-white rounded-xl shadow-sm overflow-hidden border border-slate-100 flex flex-col">
-      <img src="${product.image}" alt="${product.name}" class="h-48 w-full object-cover" loading="lazy" />
-      <div class="p-4 flex-1 flex flex-col gap-2">
-        <h3 class="font-semibold text-lg">${product.name}</h3>
-        <p class="text-sm text-slate-600">${product.description}</p>
-        <div class="text-sm text-slate-500 mt-1">
-          <span>צבע: ${product.color}</span>
-          <span class="mx-2">•</span>
-          <span>מידה: ${product.size}</span>
-        </div>
-        <div class="mt-auto pt-3 flex items-center justify-between">
-          <strong class="text-brand-navy">${formatCurrency(product.price)}</strong>
-          <button data-add-to-cart="${product.id}" class="rounded-lg bg-brand-navy text-white text-sm px-3 py-2 hover:bg-slate-800 transition">הוספה לעגלה</button>
-        </div>
+function renderProducts(list) {
+  els.grid.innerHTML = list.map((p) => `
+    <article class="bg-white rounded-xl shadow-sm overflow-hidden border border-slate-200">
+      <img src="${p.image}" alt="${p.name}" class="h-36 w-full object-cover" loading="lazy">
+      <div class="p-3 space-y-1">
+        <h3 class="font-semibold text-sm">${p.name}</h3>
+        <p class="text-xs text-slate-500">צבע: ${p.color} | קוטר: ${p.diameterCm} ס״מ</p>
+        <p class="text-xs text-slate-600">${p.description}</p>
+        <button data-add="${p.id}" class="mt-2 w-full rounded-lg bg-slate-900 text-white text-sm py-2">הוספה להזמנה</button>
       </div>
     </article>
-  `;
-}
+  `).join('');
 
-function renderProducts(items) {
-  els.grid.innerHTML = items.map(productCard).join('');
-  els.resultsInfo.textContent = `מציג ${items.length} מתוך ${products.length} כיפות`;
-  els.emptyState.classList.toggle('hidden', items.length > 0);
-}
-
-function loadCart() {
-  try {
-    const raw = localStorage.getItem(CART_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  els.resultsInfo.textContent = `מציג ${list.length} מתוך ${products.length} כיפות סרוגות`;
+  els.emptyState.classList.toggle('hidden', list.length > 0);
 }
 
 function saveCart() {
@@ -95,101 +71,63 @@ function saveCart() {
 }
 
 function addToCart(productId) {
-  const found = cart.find((item) => item.productId === productId);
-  if (found) {
-    found.qty += 1;
-  } else {
-    cart.push({ productId, qty: 1 });
-  }
+  const row = cart.find((i) => i.productId === productId);
+  if (row) row.qty += 1;
+  else cart.push({ productId, qty: 1 });
   saveCart();
   renderCart();
 }
 
 function removeFromCart(productId) {
-  cart = cart.filter((item) => item.productId !== productId);
+  cart = cart.filter((i) => i.productId !== productId);
   saveCart();
   renderCart();
 }
 
 function renderCart() {
+  const qty = cart.reduce((sum, i) => sum + i.qty, 0);
+  const total = bundlePrice(qty);
+
   if (!cart.length) {
-    els.cartItems.innerHTML = '<p class="text-slate-500 text-sm">העגלה ריקה כרגע.</p>';
-    els.cartTotal.textContent = formatCurrency(0);
-    els.cartCount.textContent = '0';
-    return;
+    els.cartItems.innerHTML = '<p class="text-sm text-slate-500">עדיין לא בחרת כיפות.</p>';
+  } else {
+    els.cartItems.innerHTML = cart.map((i) => {
+      const p = products.find((x) => x.id === i.productId);
+      return `<div class="flex items-center justify-between border rounded-lg p-2"><div><p class="text-sm font-medium">${p.name}</p><p class="text-xs text-slate-500">כמות: ${i.qty}</p></div><button data-remove="${p.id}" class="text-xs text-red-600">הסר</button></div>`;
+    }).join('');
   }
 
-  let total = 0;
-  let count = 0;
-
-  els.cartItems.innerHTML = cart
-    .map((item) => {
-      const product = products.find((p) => p.id === item.productId);
-      if (!product) return '';
-      const lineTotal = product.price * item.qty;
-      total += lineTotal;
-      count += item.qty;
-
-      return `
-        <div class="border rounded-lg p-3">
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <p class="font-medium">${product.name}</p>
-              <p class="text-sm text-slate-500">כמות: ${item.qty}</p>
-              <p class="text-sm text-slate-500">${formatCurrency(lineTotal)}</p>
-            </div>
-            <button data-remove-from-cart="${product.id}" class="text-xs text-red-600 hover:text-red-700">הסר</button>
-          </div>
-        </div>
-      `;
-    })
-    .join('');
-
+  els.cartCount.textContent = `${qty} פריטים`;
   els.cartTotal.textContent = formatCurrency(total);
-  els.cartCount.textContent = String(count);
-}
 
-function openCart() {
-  els.cartDrawer.classList.remove('-translate-x-full');
-  els.overlay.classList.remove('hidden');
-}
+  const lines = cart.map((i) => {
+    const p = products.find((x) => x.id === i.productId);
+    return `• ${p.name} - כמות ${i.qty}`;
+  }).join('%0A');
 
-function closeCart() {
-  els.cartDrawer.classList.add('-translate-x-full');
-  els.overlay.classList.add('hidden');
-}
-
-function onFilterChange() {
-  renderProducts(getFilteredProducts());
-}
-
-function bindEvents() {
-  els.searchInput.addEventListener('input', onFilterChange);
-  els.colorFilter.addEventListener('change', onFilterChange);
-  els.sizeFilter.addEventListener('change', onFilterChange);
-
-  els.grid.addEventListener('click', (event) => {
-    const btn = event.target.closest('[data-add-to-cart]');
-    if (!btn) return;
-    addToCart(btn.dataset.addToCart);
-  });
-
-  els.cartItems.addEventListener('click', (event) => {
-    const btn = event.target.closest('[data-remove-from-cart]');
-    if (!btn) return;
-    removeFromCart(btn.dataset.removeFromCart);
-  });
-
-  els.cartToggle.addEventListener('click', openCart);
-  els.cartClose.addEventListener('click', closeCart);
-  els.overlay.addEventListener('click', closeCart);
+  const msg = `שלום, אשמח להזמין כיפות סרוגות:%0A${lines}%0Aסה"כ פריטים: ${qty}%0Aסה"כ לתשלום: ${total} ש"ח`;
+  els.orderWhatsapp.href = `https://wa.me/972559487356?text=${msg}`;
 }
 
 function init() {
   populateFilters();
   renderProducts(products);
   renderCart();
-  bindEvents();
+
+  const update = () => renderProducts(filteredProducts());
+  els.searchInput.addEventListener('input', update);
+  els.colorFilter.addEventListener('change', update);
+  els.diameterFilter.addEventListener('change', update);
+
+  els.grid.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-add]');
+    if (btn) addToCart(btn.dataset.add);
+  });
+
+  els.cartItems.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-remove]');
+    if (btn) removeFromCart(btn.dataset.remove);
+  });
 }
 
 init();
