@@ -9,11 +9,20 @@
     <!-- Open Graph / WhatsApp Preview -->
     <meta property="og:title" content="נבו כיפות - כיפות סרוגות באהבה" />
     <meta property="og:description" content="קטלוג כיפות סרוגות ייחודיות. הזמנה מהירה ונוחה בוואטסאפ. שים לב: איסוף עצמי בלבד!" />
-    <meta property="og:image" content="https://nevo8102.github.io/cipaweb/logo.png" />
+    <meta property="og:image" itemprop="image" content="https://nevo8102.github.io/cipaweb/logo.png" />
+    <meta property="og:image:secure_url" content="https://nevo8102.github.io/cipaweb/logo.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="500" />
+    <meta property="og:image:height" content="500" />
     <meta property="og:url" content="https://nevo8102.github.io/cipaweb/" />
     <meta property="og:type" content="website" />
+    
+    <link rel="icon" type="image/png" href="logo.png" />
+    <link rel="apple-touch-icon" href="logo.png" />
 
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body class="bg-slate-50 text-slate-800">
@@ -37,18 +46,56 @@
     <main class="mx-auto max-w-5xl px-4 py-5 space-y-5">
       <section class="bg-white rounded-xl shadow-sm p-4">
         <h2 class="font-semibold mb-3">חיפוש וסינון</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <select id="color-filter" class="h-11 rounded-lg border border-slate-300 px-3 bg-white"><option value="">כל הצבעים</option></select>
-          <select id="diameter-filter" class="h-11 rounded-lg border border-slate-300 px-3 bg-white"><option value="">כל הקטרים (ס״מ)</option></select>
-          <select id="style-filter" class="h-11 rounded-lg border border-slate-300 px-3 bg-white"><option value="">כל הסגנונות</option></select>
-          <select id="sort-filter" class="h-11 rounded-lg border border-slate-300 px-3 bg-white"><option value="diameter-desc">מיון: גדול לקטן</option><option value="diameter-asc">מיון: קטן לגדול</option></select>
-                  <label class="flex items-center gap-2 text-sm text-slate-700"><input id="large-only" type="checkbox" class="h-4 w-4">  הכי גדולות (30% הכי גדולות)</label>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+          <div dir="rtl">
+            <label class="block text-xs font-semibold text-slate-600 mb-1">צבעים (אפשר לבחור כמה)</label>
+            <select id="color-filter" multiple class="w-full" placeholder="בחר צבעים..."></select>
+          </div>
+          <div dir="rtl">
+            <label class="block text-xs font-semibold text-slate-600 mb-1">קטרים (אפשר לבחור כמה)</label>
+            <select id="diameter-filter" multiple class="w-full" placeholder="בחר קטרים..."></select>
+          </div>
+          <div dir="rtl">
+            <label class="block text-xs font-semibold text-slate-600 mb-1">סגנונות (אפשר לבחור כמה)</label>
+            <select id="style-filter" multiple class="w-full" placeholder="בחר סגנונות..."></select>
+          </div>
+          <div dir="rtl">
+            <label class="block text-xs font-semibold text-slate-600 mb-1">מיון תוצאות</label>
+            <select id="sort-filter" class="w-full h-10 rounded border border-slate-300 px-3 bg-white text-sm"><option value="diameter-desc">מיון: גדול לקטן</option><option value="diameter-asc">מיון: קטן לגדול</option></select>
+          </div>
         </div>
       </section>
 
-      <section class="bg-white rounded-xl shadow-sm p-4">
-        <h2 class="font-semibold mb-2">מחירון</h2>
-        <p class="text-sm text-slate-600">כיפה אחת: ₪50 | שתי כיפות: ₪90 | שלוש כיפות: ₪120 | כל כיפה נוספת: ₪40</p>
+      <section class="bg-white rounded-xl shadow-sm p-3 border-r-4 border-indigo-500">
+        <h2 class="font-bold text-base mb-3 text-indigo-900">מחירון</h2>
+        <div class="grid grid-cols-1 gap-2 text-sm">
+          <div class="flex items-center justify-between bg-slate-50 p-2 rounded-lg border border-slate-100">
+            <div class="flex items-center gap-2">
+              <span class="text-indigo-500 text-xs">🔵</span>
+              <span class="font-medium">כיפה אחת</span>
+            </div>
+            <span class="text-indigo-700 font-bold">₪50</span>
+          </div>
+          
+          <div class="flex items-center justify-between bg-indigo-50/50 p-2 rounded-lg border border-indigo-100">
+            <div class="flex items-center gap-2">
+              <span class="text-indigo-500 text-xs">🔵🔵</span>
+              <span class="font-medium">2 כיפות</span>
+            </div>
+            <span class="text-indigo-700 font-bold">₪90</span>
+          </div>
+
+          <div class="flex items-center justify-between bg-emerald-50 p-2 rounded-lg border border-emerald-100">
+            <div class="flex items-center gap-2">
+              <span class="text-indigo-500 text-xs">🔵🔵🔵+</span>
+              <span class="font-medium">3 כיפות ומעלה</span>
+            </div>
+            <div class="text-left">
+              <div class="text-indigo-700 font-bold">₪120</div>
+              <div class="text-[10px] text-slate-500 font-normal mt-0.5">(+₪40 לכל כיפה נוספת)</div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section>
