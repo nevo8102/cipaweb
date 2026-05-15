@@ -19,6 +19,20 @@ const els = {
   closeModal: document.getElementById('close-modal')
 };
 
+// --- הגדרות דיסקורד (הכנס פה את הקישור שלך) ---
+const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1504811180689068052/gE4fSYXDPSBuOaPQ_ylbyTkIdUasbU7Quaukk06AMldAkVyOgHdtg4Tg_16V2-bMeaxK';
+
+async function sendToDiscord(message) {
+  if (!DISCORD_WEBHOOK_URL || DISCORD_WEBHOOK_URL.includes('YOUR_DISCORD')) return;
+  try {
+    await fetch(DISCORD_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: message })
+    });
+  } catch(e) {}
+}
+
 const CART_KEY = 'srugot-cart-v2';
 let cart = JSON.parse(localStorage.getItem(CART_KEY) || '[]');
 
@@ -140,12 +154,8 @@ function addToCart(productId) {
     updateModalButtons(productId);
   }
 
-  // Track add to cart
-  fetch('/api/track', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: 'add', id: productId })
-  }).catch(() => {});
+  // Track add to cart via Discord
+  sendToDiscord(`🛒 **הוספה לסל!** מישהו הרגע הוסיף את "${p.name}" (קוטר: ${p.diameterCm} ס"מ) לסל שלו!`);
 }
 function removeFromCart(productId) {
   cart = cart.filter((i) => i.productId !== productId);
@@ -253,19 +263,11 @@ function openImageModal(id) {
   updateModalButtons(id);
   els.modal.classList.remove('hidden');
 
-  // Track click in backend (silently catch error if backend is not available e.g. on Github)
-  fetch('/api/track', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: 'click', id: p.id })
-  }).catch(() => { /* Silent fail */ });
+  // Track click via Discord
+  sendToDiscord(`🔍 **צפייה קרובה!** מישהו הגדיל עכשיו את התמונה של "${p.name}"`);
 }
 
-// Track page visit
-fetch('/api/track', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ type: 'visit' })
-}).catch(() => {});
+// Track page visit via Discord
+sendToDiscord(`👀 **כניסה חדשה!** מישהו נכנס הרגע לאתר שלך!`);
 
 init();
