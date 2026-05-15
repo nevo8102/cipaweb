@@ -164,7 +164,11 @@ function addToCart(productId) {
   sendToDiscord(`🛒 **הוספה לסל!** מישהו הרגע הוסיף את "${p.name}" (קוטר: ${p.diameterCm} ס"מ) לסל שלו!`);
 }
 function removeFromCart(productId) {
-  cart = cart.filter((i) => i.productId !== productId);
+  const row = cart.find((i) => i.productId === productId);
+  if (row) {
+    if (row.qty > 1) row.qty -= 1;
+    else cart = cart.filter((i) => i.productId !== productId);
+  }
   saveCart();
   renderProducts(filteredProducts());
   renderCart();
