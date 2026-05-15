@@ -15,7 +15,7 @@ const products = [
     "name": "כיפה מעורב בצבע טורקיז מעורב - דגם 2",
     "image": "2.png",
     "color": "טורקיז מעורב",
-    "diameterCm": "9.6",
+    "diameterCm": "10",
     "style": "מעורב",
     "price": 50,
     "stock": 1,
