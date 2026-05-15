@@ -7,7 +7,6 @@ const els = {
   diameterFilter: document.getElementById('diameter-filter'),
   styleFilter: document.getElementById('style-filter'),
   sortFilter: document.getElementById('sort-filter'),
-  largeOnly: document.getElementById('large-only'),
   cartItems: document.getElementById('cart-items'),
   cartTotal: document.getElementById('cart-total'),
   cartCount: document.getElementById('cart-count'),
@@ -40,12 +39,6 @@ const formatCurrency = (v) => new Intl.NumberFormat('he-IL', { style: 'currency'
 const uniqueValues = (items, key) => [...new Set(items.map((item) => item[key]))].sort((a, b) => Number(a) - Number(b));
 const asNum = (p) => Number(p.diameterCm);
 
-function topThirtyThreshold() {
-  const sorted = products.map(asNum).sort((a, b) => b - a);
-  const cutoffIndex = Math.max(0, Math.ceil(sorted.length * 0.3) - 1);
-  return sorted[cutoffIndex] ?? Infinity;
-}
-
 function bundlePrice(totalQty) {
   if (totalQty <= 0) return 0;
   if (totalQty === 1) return 50;
@@ -55,7 +48,19 @@ function bundlePrice(totalQty) {
 }
 
 function populateFilters() {
-  [...new Set(products.map((p) => p.color))].sort((a, b) => a.localeCompare(b, 'he')).forEach((color) => {
+  const allColors = [];
+  products.forEach(p => {
+    if (p.color) {
+      const parts = p.color.split(/ ו-| ו|,|\/| עם /).map(c => c.trim()).filter(c => c);
+      parts.forEach(part => {
+        // ניקח רק את המילה הראשונה כדי לאחד גוונים (לדוגמה "ירוק זית" -> "ירוק")
+        const baseColor = part.split(' ')[0];
+        if (baseColor) allColors.push(baseColor);
+      });
+    }
+  });
+
+  [...new Set(allColors)].sort((a, b) => a.localeCompare(b, 'he')).forEach((color) => {
     els.colorFilter.insertAdjacentHTML('beforeend', `<option value="${color}">${color}</option>`);
   });
 
@@ -68,19 +73,20 @@ function populateFilters() {
   });
 }
 
+function getSelected(selectEl) {
+  return Array.from(selectEl.selectedOptions).map(opt => opt.value).filter(v => v);
+}
+
 function filteredProducts() {
-  const color = els.colorFilter.value;
-  const diameter = els.diameterFilter.value;
-  const style = els.styleFilter.value;
-  const largeOnly = els.largeOnly.checked;
-  const threshold = topThirtyThreshold();
+  const colors = getSelected(els.colorFilter);
+  const diameters = getSelected(els.diameterFilter);
+  const styles = getSelected(els.styleFilter);
 
   let list = products.filter((p) => {
-    const byColor = !color || p.color.includes(color);
-    const byDiameter = !diameter || p.diameterCm === diameter;
-    const byStyle = !style || p.style === style;
-    const byLarge = !largeOnly || asNum(p) >= threshold;
-    return byColor && byDiameter && byStyle && byLarge;
+    const byColor = colors.length === 0 || colors.some(c => p.color.includes(c));
+    const byDiameter = diameters.length === 0 || diameters.includes(p.diameterCm);
+    const byStyle = styles.length === 0 || styles.includes(p.style);
+    return byColor && byDiameter && byStyle;
   });
 
   list = list.sort((a, b) => els.sortFilter.value === 'diameter-asc' ? asNum(a) - asNum(b) : asNum(b) - asNum(a));
@@ -194,13 +200,27 @@ function renderCart() {
 
 function init() {
   populateFilters();
+  
+  // Initialize TomSelect for multi-select premium UI
+  const tsConfig = {
+    plugins: ['remove_button'],
+    maxItems: null,
+    hidePlaceholder: true,
+    render: {
+      item: function(data, escape) { return '<div>' + escape(data.text) + '</div>'; }
+    }
+  };
+  
+  new TomSelect(els.colorFilter, tsConfig);
+  new TomSelect(els.diameterFilter, tsConfig);
+  new TomSelect(els.styleFilter, tsConfig);
+
   renderProducts(filteredProducts());
   renderCart();
 
   const update = () => renderProducts(filteredProducts());
-  [els.colorFilter, els.diameterFilter, els.styleFilter, els.sortFilter, els.largeOnly].forEach((el) => {
-    el.addEventListener(el.type === 'checkbox' ? 'change' : 'input', update);
-    if (el.tagName === 'SELECT') el.addEventListener('change', update);
+  [els.colorFilter, els.diameterFilter, els.styleFilter, els.sortFilter].forEach((el) => {
+    if (el) el.addEventListener('change', update);
   });
 
   els.grid.addEventListener('click', (e) => { 
