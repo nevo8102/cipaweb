@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מנתח הנתונים מדיסקורד</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="data.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 p-4 font-sans h-screen flex flex-col">
+    
+    <header class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-3xl font-bold text-indigo-700">מנתח נתוני דיסקורד 📊</h1>
+            <p class="text-slate-500 mt-1">הדבק כאן את כל ההודעות שהבוט שלח לך כדי לגלות מה הכי פופולרי!</p>
+        </div>
+        <a href="index.html" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 font-bold">חזרה לחנות</a>
+    </header>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1">
+        <!-- אזור הדבקת הטקסט -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+            <h2 class="text-lg font-bold mb-2">1. הדבק את ההודעות מדיסקורד:</h2>
+            <textarea id="discord-text" class="w-full flex-1 border border-slate-300 rounded-lg p-3 text-left dir-ltr bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="הדבק פה את כל ההיסטוריה מהדיסקורד...
+לדוגמה:
+🛒 **הוספה לסל!** מישהו הרגע הוסיף את..."></textarea>
+            <button onclick="analyzeData()" class="mt-4 w-full bg-indigo-600 text-white font-bold py-3 rounded-lg hover:bg-indigo-700 transition">נתח נתונים עכשיו!</button>
+        </div>
+
+        <!-- אזור התוצאות -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 overflow-y-auto">
+            <h2 class="text-lg font-bold mb-4 border-b pb-2">2. תוצאות הניתוח:</h2>
+            
+            <div id="results-area" class="hidden space-y-6">
+                <!-- סיכום כללי -->
+                <div class="grid grid-cols-3 gap-2 text-center">
+                    <div class="bg-slate-100 p-3 rounded-lg">
+                        <div class="text-xs text-slate-500">כניסות</div>
+                        <div id="res-visits" class="text-xl font-bold text-slate-800">0</div>
+                    </div>
+                    <div class="bg-purple-100 p-3 rounded-lg">
+                        <div class="text-xs text-purple-600">צפיות בכיפות</div>
+                        <div id="res-clicks" class="text-xl font-bold text-purple-800">0</div>
+                    </div>
+                    <div class="bg-emerald-100 p-3 rounded-lg">
+                        <div class="text-xs text-emerald-600">הוספות לסל</div>
+                        <div id="res-adds" class="text-xl font-bold text-emerald-800">0</div>
+                    </div>
+                </div>
+
+                <!-- מגמות (צבעים, סגנונות, קוטר) -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <h3 class="font-bold text-slate-700 mb-2">🎨 הצבעים הכי אהובים</h3>
+                        <ul id="res-colors" class="space-y-1 text-sm bg-slate-50 p-2 rounded border"></ul>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-700 mb-2">📏 הקוטר הכי מבוקש</h3>
+                        <ul id="res-diameters" class="space-y-1 text-sm bg-slate-50 p-2 rounded border"></ul>
+                    </div>
+                    <div class="col-span-2">
+                        <h3 class="font-bold text-slate-700 mb-2">✨ הסגנונות הכי פופולריים</h3>
+                        <ul id="res-styles" class="space-y-1 text-sm bg-slate-50 p-2 rounded border"></ul>
+                    </div>
+                </div>
+
+                <!-- הכיפות המובילות -->
+                <div>
+                    <h3 class="font-bold text-slate-700 mb-2">🏆 הכיפות הספציפיות הכי פופולריות</h3>
+                    <ul id="res-top-products" class="space-y-2"></ul>
+                </div>
+            </div>
+
+            <div id="empty-state" class="text-center text-slate-400 py-10">
+                הכנס נתונים ולחץ על "נתח" כדי לראות תוצאות...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function analyzeData() {
+            const text = document.getElementById('discord-text').value;
+            if (!text.trim()) {
+                alert('נא להדביק טקסט מדיסקורד קודם!');
+                return;
+            }
+
+            // Object to count occurrences
+            let visits = 0;
+            let adds = 0;
+            let clicks = 0;
+            
+            const productScores = {}; // Product ID -> points
+            
+            // We use simple points system: Add to cart = 3 points, Click = 1 point
+
+            const lines = text.split('\n');
+            
+            lines.forEach(line => {
+                if (line.includes('כניסה חדשה!')) {
+                    visits++;
+                } else if (line.includes('הוספה לסל!')) {
+                    adds++;
+                    // Extract name inside quotes: את "שם הכיפה"
+                    const match = line.match(/את "([^"]+)"/);
+                    if (match) {
+                        const name = match[1];
+                        const p = products.find(x => x.name === name);
+                        if (p) {
+                            productScores[p.id] = (productScores[p.id] || 0) + 3; // 3 points for add
+                        }
+                    }
+                } else if (line.includes('צפייה קרובה!')) {
+                    clicks++;
+                    // Extract name inside quotes: של "שם הכיפה"
+                    const match = line.match(/של "([^"]+)"/);
+                    if (match) {
+                        const name = match[1];
+                        const p = products.find(x => x.name === name);
+                        if (p) {
+                            productScores[p.id] = (productScores[p.id] || 0) + 1; // 1 point for view
+                        }
+                    }
+                }
+            });
+
+            // Calculate Trends
+            const colors = {};
+            const styles = {};
+            const diameters = {};
+
+            Object.entries(productScores).forEach(([id, score]) => {
+                const p = products.find(x => x.id === id);
+                if (p) {
+                    colors[p.color] = (colors[p.color] || 0) + score;
+                    styles[p.style] = (styles[p.style] || 0) + score;
+                    diameters[p.diameterCm] = (diameters[p.diameterCm] || 0) + score;
+                }
+            });
+
+            // Helper to sort and format
+            const sortAndFormat = (obj, label) => {
+                return Object.entries(obj)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 5) // Top 5
+                    .map(([name, score]) => `<li><span class="font-semibold">${name}</span> <span class="text-slate-400 text-xs">(${score} נק' עניין)</span></li>`)
+                    .join('');
+            };
+
+            document.getElementById('res-colors').innerHTML = sortAndFormat(colors) || '<li>אין נתונים</li>';
+            document.getElementById('res-styles').innerHTML = sortAndFormat(styles) || '<li>אין נתונים</li>';
+            document.getElementById('res-diameters').innerHTML = sortAndFormat(diameters) || '<li>אין נתונים</li>';
+
+            // Top Products
+            const topProducts = Object.entries(productScores)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5);
+            
+            const topProductsHtml = topProducts.map(([id, score]) => {
+                const p = products.find(x => x.id === id);
+                if (!p) return '';
+                return `
+                    <li class="flex items-center gap-3 bg-slate-50 p-2 rounded-lg border">
+                        <img src="${p.image}" class="w-12 h-12 object-cover rounded">
+                        <div class="flex-1">
+                            <div class="font-bold text-sm">${p.name}</div>
+                            <div class="text-xs text-slate-500">${p.color} | קוטר ${p.diameterCm} | ${p.style}</div>
+                        </div>
+                        <div class="bg-indigo-100 text-indigo-800 font-bold px-2 py-1 rounded text-xs">
+                            ${score} נקודות
+                        </div>
+                    </li>
+                `;
+            }).join('');
+
+            document.getElementById('res-top-products').innerHTML = topProductsHtml || '<li class="text-slate-500">אין נתונים על כיפות ספציפיות...</li>';
+
+            // Update basic stats
+            document.getElementById('res-visits').textContent = visits;
+            document.getElementById('res-clicks').textContent = clicks;
+            document.getElementById('res-adds').textContent = adds;
+
+            // Show results
+            document.getElementById('empty-state').classList.add('hidden');
+            document.getElementById('results-area').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
